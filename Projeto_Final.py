@@ -45,7 +45,7 @@ def register():
     return jsonify({'Success':'User registred for success'}), 201
 
 #Login
-@app.route('/logins', methods=['POST'])
+@app.route('/user', methods=['POST'])
 def login():
     conn,cur = get_database()
     gmail = request.form.get('gmail')
@@ -63,26 +63,70 @@ def login():
     return jsonify({'Error':'Gmail not registred'}), 401
 
 
-#DELETAR usuario
-@app.route('/logins/user', methods=['DELETE'])
+#MOSTRAR TODOS os usuarios ##Estudar alguns trechos do código ao mais tardar..
+@app.route('/user', methods=['GET'])
 def user():
-    conn,cur = get_database()
-
-    gmail = request.args.get('gmail')
-    password = request.args.get('password') 
+    conn, cur = get_database()
     
-    if not password or not gmail:
-        return jsonify({'Error':'Dont insert gmail or password'})
+    cur.execute('select * from users')
+    rows = cur.fetchall()
 
-    cur.execute('select id, gmail from users where gmail = ? AND password = ?',(gmail, password))
-    user = cur.fetchone()
-    cur.execute('DELETE FROM users WHERE gmail = ? AND password = ?', (gmail,password))
+    columns = []
+    for desc in cur.description:
+        columns.append(desc[0])
+
+    users = []
+    for row in rows:
+        user_dict = dict(zip(columns, row))
+        users.append(user_dict)
+    
     conn.close()
 
+    return jsonify(users)
+
+#Mostrar um único usuario
+@app.route('/user/<int:id>', methods=['GET'])
+def get_user_id(id):
+    conn, cur = get_database()
+    
+    cur.execute('SELECT * FROM users WHERE  id = ?',(id ,))
+    user = cur.fetchone()
+    
     if user:
-        id = user[0]
-        gmail = user[1]
-        return jsonify({'DELETED', {'id':id,'gmail':gmail})
-    return jsonify({'Error':'user not found'})
+        return jsonify(user)
+    return jsonify({'Error':'User not found.'}), 404
+
+#Deletar usuarios
+@app.route('/user/<int:id>', methods=['DELETE'])
+def delet_user(id):
+    conn , cur = get_database()
+
+    cur.execute('DELETE FROM users WHERE id = ?',(id,))
+    conn.commit()
+    conn.close()
+   
+    if cur.rowcount > 0:
+        return jsonify({'Success':'user is deleted'}), 200
+    return jsonify({'Error':'user not found'}), 404
+
+#Atualizar usuario
+@app.route('/user/<int:id>', methods=['PUT'])
+def update_user(id):
+    conn, cur = get_database()
+    gmail = request.form.get('gmail')
+
+    if not gmail:
+        return jsonify({'Error':'need only gmail'})
+    try:
+        cur.execute('UPDATE users SET gmail = ? WHERE id = ?', (gmail, id))
+        conn.commit()
+        conn.close()
+        
+        if cur.rowcount > 0:
+            return jsonify({'Success':'altered gmail'}), 200
+        return jsonify({'Error':'user not found'}), 404
+    except Exception as e:
+        return jsonify({'Error':str(e)}), 500
+    
 if __name__ == '__main__':
     app.run(debug=True)
